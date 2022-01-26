@@ -7,45 +7,55 @@
         <th>Creator</th>
         <th>Medium</th>
         <th>Description</th>
-        <th>Metadata</th>
+        <th>Token</th>
         <th>Unpin</th>
       </tr>
     </thead>
     <tbody>
-      <tr v-for="objkt in curPage" :key="objkt?.pk_id?.toString()">
+      <tr v-for="objkt in curPage" :key="objkt?.id?.toString()">
         <td>
           <a v-if="objktLink(objkt)" :href="objktLink(objkt)">{{
-            objkt.id.length > 6
-              ? objkt.id.substring(0, 3) + "..." + objkt.id.slice(-3)
-              : objkt.id
+            objkt.tokenId.length > 6
+              ? objkt.tokenId.substring(0, 3) + "..." + objkt.tokenId.slice(-3)
+              : objkt.tokenId
           }}</a>
           <span v-else>{{
-            objkt.id.substring(0, 3) + "..." + objkt.id.slice(-3)
+            objkt.tokenId.substring(0, 3) + "..." + objkt.tokenId.slice(-3)
           }}</span>
         </td>
         <td style="font-style: italic">
           <a
+            v-if="objkt.metadata?.artifactUri"
             :href="`https://dweb.link/ipfs/${
-              objkt.artifact_uri.split('//')[1]
+              objkt.metadata?.artifactUri?.split('//')[1]
             }`"
-            >{{ objkt.title || "Untitled" }}</a
+            >{{ objkt.metadata.name || "Untitled" }}</a
           >
+          <span v-else>{{ objkt.metadata.name || "Untitled" }}</span>
         </td>
+
         <td>
           <a v-if="creatorLink(objkt)" :href="creatorLink(objkt)">{{
             creatorAlias(objkt)
           }}</a>
-          <span v-else>{{ objktAlias(objkt) }}</span>
+          <span v-else>{{ creatorAlias(objkt) }}</span>
         </td>
-        <td>{{ objkt?.mime }}</td>
-        <td>{{ objkt?.description }}</td>
         <td>
+          <span v-if="objkt?.metadata?.formats">{{
+            objkt?.metadata?.formats.map((f) => f.mimeType).join(" | ")
+          }}</span>
+        </td>
+        <td>{{ objkt?.metadata?.description }}</td>
+        <td>
+          {{ objkt?.contract?.alias ? objkt.contract.alias : " " }}
+        </td>
+        <!-- <td>
           <a :href="objkt.metadata">{{
             objkt.metadata !== "" ? objkt.metadata.slice(7, 15) + "..." : ""
           }}</a>
-        </td>
+        </td> -->
         <td style="text-align: center">
-          <span @click="unpin(objkt.pk_id)" class="unpin">❌</span>
+          <span @click="unpin(objkt.id)" class="unpin">❌</span>
         </td>
       </tr>
     </tbody>
@@ -107,6 +117,7 @@ div.pagination div:hover {
 
 <script>
 import { get, del } from "idb-keyval";
+//import { domainQuery, graphqlQuery } from "../helpers/queries";
 
 export default {
   name: "Objkts",
@@ -125,7 +136,7 @@ export default {
     numPages() {
       let pages = [];
       const numPages = Math.ceil(
-        Object.keys(this.objkts).length / this.perPage
+        Object.keys(this.objkts || {}).length / this.perPage
       );
 
       if (numPages === 0) {
@@ -164,7 +175,11 @@ export default {
     },
     curPage() {
       const start = this.perPage * this.page;
-      return Object.values(this.objkts).slice(start, start + this.perPage);
+      const page = Object.values(this.objkts).slice(
+        start,
+        start + this.perPage
+      );
+      return page;
     },
   },
   methods: {
@@ -172,44 +187,78 @@ export default {
       this.page = num;
     },
     creatorLink(objkt) {
-      if (objkt?.creator?.twitter) {
-        return `https://twitter.com/${objkt.creator.twitter}`;
-      } else if (objkt?.creator?.site) {
-        return objkt.creator.site;
-      } else if (objkt?.creator?.address) {
-        return `https://tzkt.io/${objkt.creator.address}`;
+      if (!objkt?.metadata?.creators || objkt?.metadata?.creators?.length < 1) {
+        return "";
       } else {
-        return undefined;
-      }
-    },
-    creatorAlias(objkt) {
-      if (!objkt.creator) {
-        return objkt.fa2?.name;
+        return `https://tzkt.io/${objkt.metadata.creators[0]}`;
       }
 
-      if (objkt.creator.alias) {
-        return objkt.creator.alias;
+      //   if (objkt?.creator?.twitter) {
+      //     return `https://twitter.com/${objkt.creator.twitter}`;
+      //   } else if (objkt?.creator?.site) {
+      //     return objkt.creator.site;
+      //   } else if (objkt?.creator?.address) {
+      //     return `https://tzkt.io/${objkt.creator.address}`;
+      //   } else {
+      //     return undefined;
+      //   }
+    },
+    creatorAlias(objkt) {
+      //const tzDomains = "https://api.tezos.domains/graphql";
+      let addr = "";
+
+      if (!objkt?.metadata?.creators || objkt?.metadata?.creators?.length < 1) {
+        addr = objkt.contract?.address;
       } else {
-        const addr = objkt.creator.address;
-        return addr.substring(0, 5) + "..." + addr.substring(addr.length - 5);
+        addr = objkt.metadata.creators[0];
       }
+
+      return addr.substring(0, 5) + "..." + addr.substring(addr.length - 5);
+
+      //   const res = await graphqlQuery(
+      //     tzDomains,
+      //     domainQuery,
+      //     { address: addr },
+      //     "reverseRecords"
+      //   );
+      //   if (res.errors) {
+      //     console.error(res.errors);
+      //     return addr.substring(0, 5) + "..." + addr.substring(addr.length - 5);
+      //   } else {
+      //     return addr.substring(0, 5) + "..." + addr.substring(addr.length - 5);
+      //   }
+
+      // const domain = res.data.reverseRecords?.items?.domain;
+      // if (domain) {
+      //   const data = Object.fromEntries(domain.data);
+      //   return data["twitter:handle"]
+      //     ? data["twitter:handle"]
+      //     : data["openid:website"]
+      //     ? data["openid:website"]
+      //     : domain.name;
+      // } else {
+      //   return addr.substring(0, 5) + "..." + addr.substring(addr.length - 5);
+      // }
+      // }
     },
     objktLink(objkt) {
-      if (objkt?.fa2?.name === "hic et nunc") {
-        return `https://hicetnunc.art/objkt/${objkt.id}`;
-      } else if (objkt?.fa2?.path) {
-        return `https://objkt.com/asset/${objkt.fa2.path}/${objkt.id}`;
+      if (objkt?.contract?.alias === "hic et nunc NFTs") {
+        return `https://hic.af/objkt/${objkt.tokenId}`;
+      } else if (objkt?.contract?.alias === "Versum Items") {
+        return `https://versum.xyz/token/versum/${objkt.tokenId}`;
+      } else if (objkt?.contract?.alias === "FXHASH GENTK") {
+        return `https://www.fxhash.xyz/gentk/${objkt.tokenId}`;
       } else {
-        return undefined;
+        return `https://tzkt.io/${objkt?.contract?.address}`;
       }
     },
     async unpin(id) {
-      const ipfsAssets = ["artifact_uri", "metadata"];
+      const ipfsAssets = ["artifactUri", "displayUri", "thumbnailUri"];
 
       const objkt = await get(id);
 
       const cids = [];
-      console.log(`Unpinning objkt ${objkt.pk_id}`);
+      console.log(`Unpinning objkt ${objkt.id}`);
 
       for (let uri of ipfsAssets) {
         if (objkt[uri]) {

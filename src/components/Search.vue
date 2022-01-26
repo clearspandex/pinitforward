@@ -64,7 +64,6 @@ div#status {
 </style>
 
 <script>
-import { accountQuery, graphqlQuery } from "../helpers/queries";
 import { get } from "idb-keyval";
 
 export default {
@@ -87,7 +86,7 @@ export default {
       const newObjkts = [];
 
       for (const objkt of query) {
-        const o = await get(objkt.pk_id);
+        const o = await get(objkt.token.id);
         if (!o) {
           newObjkts.push(objkt);
         }
@@ -103,32 +102,32 @@ export default {
       }
     },
     async fetchObjkts(address) {
-      let query;
-      let operation;
       let offset = 0;
+      const limit = 10000;
 
-      if (address.startsWith("tz")) {
-        query = accountQuery;
-        operation = "getCollection";
-      } else {
+      if (!address.startsWith("tz")) {
         alert("Not a valid Tezos address");
         throw "Not a valid Tezos address";
       }
+
       let objkts = [];
-      let res;
+      let data;
       do {
-        res = await graphqlQuery(
-          "https://data.objkt.com/v1/graphql",
-          query,
-          { address: address, offset: offset },
-          operation
+        const res = await fetch(
+          `https://staging.api.tzkt.io/v1/tokens/balances?token.standard=fa2&sort.desc=id&limit=${limit}&account=${address}&offset=${offset}`
         );
+
         if (res.errors) {
           console.error(res.errors);
+          alert(`Token metadata fetch failed for ${address}`);
+          throw "Fetch Failed";
         }
-        objkts = [...objkts, ...res?.data?.token];
-        offset += 250;
-      } while (res?.data?.token?.length === 250);
+
+        const data = await res.json();
+
+        objkts = [...objkts, ...data];
+        offset += limit;
+      } while (data?.length === limit);
       return objkts;
     },
   },

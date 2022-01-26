@@ -113,9 +113,30 @@ query getObjkt($address: String!, $offset: Int!) {
 }
 `;
 
+const domainQuery = `
+query reverseRecords($address: Address!) {
+    reverseRecords(
+      where: {
+        address: {
+          equalTo: $address
+        }
+      }
+    ) {
+      items {
+        address
+        owner
+        domain {
+          name
+        }
+      }
+    }
+  }
+`;
+
 async function graphqlQuery(url, query, variables, operationName) {
   const result = await fetch(url, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       query: query,
       variables: variables,
@@ -126,4 +147,4 @@ async function graphqlQuery(url, query, variables, operationName) {
   return await result.json();
 }
 
-export { accountQuery, objktQuery, metadataQuery, graphqlQuery };
+export { accountQuery, objktQuery, metadataQuery, domainQuery, graphqlQuery };

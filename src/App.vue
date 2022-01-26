@@ -37,14 +37,15 @@
             >
               Adding
               <span class="coldlight"
-                >{{ pinProgress + timeouts + 1 }} of {{ toPin }} Objkts</span
+                >{{ pinProgress + timeouts.length + 1 }} of
+                {{ toPin }} Objkts</span
               >
-              (<span class="highlight">{{ timeouts }} timeouts</span>){{
+              (<span class="highlight">{{ timeouts.length }} timeouts</span>){{
                 ".".repeat(numEllipses % 4)
               }}
             </h3>
             <progress
-              :value="pinProgress + timeouts"
+              :value="pinProgress + timeouts.length"
               :max="toPin"
               style="width: 600px"
             ></progress>
@@ -149,9 +150,7 @@
       </div>
       <div>
         powered by
-        <a href="https://data.objkt.com/docs/" style="color: white"
-          >data.objkt.com</a
-        >
+        <a href="https://tzkt.io/" style="color: white">TzKT API</a>
       </div>
     </div>
   </footer>
@@ -285,8 +284,6 @@ import Search from "./components/Search.vue";
 import Ipfs from "./components/Ipfs.vue";
 import Objkts from "./components/Objkts.vue";
 
-import { metadataQuery, graphqlQuery } from "./helpers/queries";
-
 export default {
   name: "Pin it forward",
   components: {
@@ -306,7 +303,7 @@ export default {
       pinning: false,
       statusMsg: "Fetching Objkt Metadata",
       numEllipses: 0,
-      timeouts: 0,
+      timeouts: [],
     };
   },
   created() {
@@ -314,10 +311,15 @@ export default {
   },
   mounted() {
     this.onResize();
-    entries().then((entries) => {
-      for (const objkt of entries) {
-        this.objkts[objkt[0]] = objkt[1];
+    entries().then((res) => {
+      console.log(`${res.length} Objkts found in local storage`);
+
+      const local = {};
+      for (const objkt of res) {
+        local[objkt[0]] = objkt[1];
       }
+
+      this.objkts = local;
     });
   },
   methods: {
@@ -343,40 +345,40 @@ export default {
       this.downloading = false;
       this.pinning = true;
 
-      const ipfsAssets = ["artifact_uri", "metadata"];
+      const ipfsAssets = ["artifactUri", "displayUri", "thumbnailUri"];
 
       this.pinProgress = 0;
-      this.timeouts = 0;
+      this.timeouts = [];
       this.toPin = assets.length;
 
-      for (let objkt of assets) {
-        if (objkt.metadata === "" && objkt?.fa2?.name === "hic et nunc") {
-          const res = await graphqlQuery(
-            "https://api.hicdex.com/v1/graphql",
-            metadataQuery,
-            { id: objkt.id },
-            "getMetadata"
-          );
-          if (res.errors) {
-            console.error(res.errors);
-          }
-
-          if (objkt.id === res.data.hic_et_nunc_token_by_pk.id.toString()) {
-            objkt.metadata = res.data.hic_et_nunc_token_by_pk.metadata;
-          }
-        }
-
-        const cids = [];
-        console.log(`Processing objkt ${objkt.id}`);
+      for (let asset of assets) {
+        const ids = new Set();
+        const objkt = asset.token.metadata;
+        console.log(
+          `Processing objkt ${asset.token.tokenId} of ${asset.token.contract.address}`
+        );
 
         for (let uri of ipfsAssets) {
           if (objkt[uri]) {
             const cid = objkt[uri].match(/^ipfs:\/\/([^\\?]+)(\\?.*)?$/);
 
             if (cid) {
-              cids.push({ cid: cid[1], recursive: true });
+              ids.add(cid[1]);
             }
           }
+        }
+
+        for (let format of objkt.formats || []) {
+          const cid = format.uri.match(/^ipfs:\/\/([^\\?]+)(\\?.*)?$/);
+
+          if (cid) {
+            ids.add(cid[1]);
+          }
+        }
+
+        const cids = [];
+        for (let v of ids.values()) {
+          cids.push({ cid: v, recursive: true });
         }
 
         try {
@@ -387,20 +389,45 @@ export default {
           console.log(err);
           if (err.name == "TimeoutError") {
             console.log(
-              `Pinning ${objkt.id} failed due to timmeout. Continuing...`
+              `Pinning ${objkt.name} failed due to timeout. Continuing...`
             );
-            this.timeouts += 1;
+            this.timeouts.push({ cids: cids, token: asset.token });
             continue;
           } else {
             throw err;
           }
         }
 
-        console.log(`Stored ${objkt.id}`);
-        await set(objkt.pk_id, objkt);
-        this.objkts[objkt.pk_id] = objkt;
+        console.log(`Stored ${asset.token.id}`);
+        await set(asset.token.id, asset.token);
+        this.objkts[asset.token.id] = asset.token;
         this.pinProgress += 1;
       }
+
+      //   for (const [idx, asset] of this.timeouts.entries()) {
+      //     try {
+      //       for await (let c of this.ipfs.pin.addAll(asset.cids, {
+      //         timeout: 600000,
+      //       })) {
+      //         console.log(`Pinned CID: ${c}`);
+      //         this.timeouts.splice(idx, 1);
+      //       }
+      //     } catch (err) {
+      //       console.log(err);
+      //       if (err.name == "TimeoutError") {
+      //         console.log(`Pinning failed due to timeout. Continuing...`);
+      //         continue;
+      //       } else {
+      //         throw err;
+      //       }
+      //     }
+
+      //     console.log(`Stored ${asset.token.id}`);
+      //     await set(asset.token.id, asset.token);
+      //     this.objkts[asset.token.id] = asset.token;
+      //     this.pinProgress += 1;
+      //   }
+
       this.pinning = false;
     },
   },
