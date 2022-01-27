@@ -404,29 +404,29 @@ export default {
         this.pinProgress += 1;
       }
 
-      //   for (const [idx, asset] of this.timeouts.entries()) {
-      //     try {
-      //       for await (let c of this.ipfs.pin.addAll(asset.cids, {
-      //         timeout: 600000,
-      //       })) {
-      //         console.log(`Pinned CID: ${c}`);
-      //         this.timeouts.splice(idx, 1);
-      //       }
-      //     } catch (err) {
-      //       console.log(err);
-      //       if (err.name == "TimeoutError") {
-      //         console.log(`Pinning failed due to timeout. Continuing...`);
-      //         continue;
-      //       } else {
-      //         throw err;
-      //       }
-      //     }
+      for (const [idx, asset] of this.timeouts.entries()) {
+        try {
+          for await (let c of this.ipfs.pin.addAll(asset.cids, {
+            timeout: 600000,
+          })) {
+            console.log(`Pinned CID: ${c}`);
+            this.timeouts.splice(idx, 1);
+          }
+        } catch (err) {
+          console.log(err);
+          if (err.name == "TimeoutError") {
+            console.log(`Pinning failed due to timeout. Continuing...`);
+            continue;
+          } else {
+            throw err;
+          }
+        }
 
-      //     console.log(`Stored ${asset.token.id}`);
-      //     await set(asset.token.id, asset.token);
-      //     this.objkts[asset.token.id] = asset.token;
-      //     this.pinProgress += 1;
-      //   }
+        console.log(`Stored ${asset.token.id}`);
+        await set(asset.token.id, asset.token);
+        this.objkts[asset.token.id] = asset.token;
+        this.pinProgress += 1;
+      }
 
       this.pinning = false;
     },

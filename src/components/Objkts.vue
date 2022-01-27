@@ -242,12 +242,14 @@ export default {
       // }
     },
     objktLink(objkt) {
-      if (objkt?.contract?.alias === "hic et nunc NFTs") {
-        return `https://hic.af/objkt/${objkt.tokenId}`;
-      } else if (objkt?.contract?.alias === "Versum Items") {
-        return `https://versum.xyz/token/versum/${objkt.tokenId}`;
-      } else if (objkt?.contract?.alias === "FXHASH GENTK") {
-        return `https://www.fxhash.xyz/gentk/${objkt.tokenId}`;
+      const urls = {
+        "hic et nunc NFTs": "https://hic.af/objkt/",
+        "Versum Items": "https://versum.xyz/token/versum/",
+        "FXHASH GENTK": "https://www.fxhash.xyz/gentk/",
+      };
+
+      if (objkt?.contract?.alias && urls[objkt.contract.alias]) {
+        return urls[objkt.contract.alias] + objkt.tokenId;
       } else {
         return `https://tzkt.io/${objkt?.contract?.address}`;
       }
